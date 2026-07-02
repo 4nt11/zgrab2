@@ -1,0 +1,1 @@
+{"ip":"127.0.0.1","domain":"target","data":{"dimse":{"status":"success","protocol":"dimse","port":104,"result":{"established":false,"called_ae":"ANY-SCP","calling_ae":"ZGRAB2","verification_accepted":false,"rejected":true,"reject_result":1,"reject_source":1,"reject_reason":7,"reject_detail":"rejected-permanent / service-user / reason 7"}}}}
