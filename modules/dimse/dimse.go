@@ -9,17 +9,20 @@ package dimse
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"strings"
+
+	"github.com/zmap/zgrab2"
 )
 
 // Well-known DICOM UIDs.
 const (
 	applicationContextUID = "1.2.840.10008.3.1.1.1"
-	verificationSOPClass  = "1.2.840.10008.1.1"     // "are you a DICOM node" SOP class
-	implicitVRLittleEnd   = "1.2.840.10008.1.2"     // every conformant node speaks this
+	verificationSOPClass  = "1.2.840.10008.1.1" // "are you a DICOM node" SOP class
+	implicitVRLittleEnd   = "1.2.840.10008.1.2" // every conformant node speaks this
 	explicitVRLittleEnd   = "1.2.840.10008.1.2.1"
 
 	// Our SCU identity. Under the Medical Connections free UID root; identifies
@@ -59,6 +62,8 @@ type Results struct {
 	RejectSource uint8  `json:"reject_source,omitempty"`
 	RejectReason uint8  `json:"reject_reason,omitempty"`
 	RejectDetail string `json:"reject_detail,omitempty"`
+
+	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"` // populated when --use-tls
 }
 
 // Associate performs the full recon handshake against conn and fills a Results.
@@ -140,8 +145,8 @@ func buildAssociateRQ(callingAE, calledAE string) []byte {
 func buildPresentationContextRQ() []byte {
 	var pc bytes.Buffer
 	pc.Write([]byte{presentationContextID, 0x00, 0x00, 0x00})
-	pc.Write(subItem(0x30, []byte(verificationSOPClass)))          // abstract syntax
-	pc.Write(subItem(0x40, []byte(implicitVRLittleEnd)))           // transfer syntax
+	pc.Write(subItem(0x30, []byte(verificationSOPClass))) // abstract syntax
+	pc.Write(subItem(0x40, []byte(implicitVRLittleEnd)))  // transfer syntax
 	pc.Write(subItem(0x40, []byte(explicitVRLittleEnd)))
 	return subItem(0x20, pc.Bytes())
 }
@@ -315,11 +320,11 @@ func doCEcho(conn net.Conn) (uint16, error) {
 	}
 	// PDV: 4-byte BE length, 1 pcid, 1 message-control-header, then command bytes.
 	if len(body) < 6 {
-		return 0, fmt.Errorf("short P-DATA-TF")
+		return 0, errors.New("short P-DATA-TF")
 	}
 	pdvLen := int(binary.BigEndian.Uint32(body[0:4]))
 	if 4+pdvLen > len(body) || pdvLen < 2 {
-		return 0, fmt.Errorf("bad PDV length")
+		return 0, errors.New("bad PDV length")
 	}
 	return findStatusElement(body[6 : 4+pdvLen])
 }
@@ -328,9 +333,9 @@ func buildCEchoPDU() []byte {
 	// Command elements after the group-length element.
 	var cmd bytes.Buffer
 	cmd.Write(dimseElement(tagAffectedSOPClas, evenPad([]byte(verificationSOPClass))))
-	cmd.Write(dimseElement(tagCommandField, u16le(0x0030)))  // C-ECHO-RQ
+	cmd.Write(dimseElement(tagCommandField, u16le(0x0030))) // C-ECHO-RQ
 	cmd.Write(dimseElement(tagMessageID, u16le(0x0001)))
-	cmd.Write(dimseElement(tagDataSetType, u16le(0x0101)))   // no data set
+	cmd.Write(dimseElement(tagDataSetType, u16le(0x0101))) // no data set
 
 	groupLen := u32le(uint32(cmd.Len()))
 	var full bytes.Buffer
@@ -362,7 +367,7 @@ func findStatusElement(cmd []byte) (uint16, error) {
 		}
 		cmd = cmd[8+length:]
 	}
-	return 0, fmt.Errorf("no status element in C-ECHO-RSP")
+	return 0, errors.New("no status element in C-ECHO-RSP")
 }
 
 // dimseElement encodes one Implicit VR LE element: tag (4) + 4-byte LE length + value.

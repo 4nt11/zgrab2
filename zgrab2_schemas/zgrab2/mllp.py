@@ -23,6 +23,7 @@ mllp_scan_response = SubRecord(
                 "version": String(),
                 "control_id": String(),
                 "err_text": String(),
+                "tls": zgrab2.tls_log,
                 "raw": String(),
             }
         )

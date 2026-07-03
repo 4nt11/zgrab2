@@ -20,6 +20,7 @@ dimse_scan_response = SubRecord(
                 "accepted_transfer_syntax": String(),
                 "verification_accepted": Boolean(),
                 "echo_status": Unsigned16BitInteger(),
+                "tls": zgrab2.tls_log,
                 "rejected": Boolean(),
                 "aborted": Boolean(),
                 "reject_result": Unsigned8BitInteger(),

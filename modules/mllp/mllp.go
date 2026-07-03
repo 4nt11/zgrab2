@@ -10,11 +10,14 @@ package mllp
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"strings"
 	"time"
+
+	"github.com/zmap/zgrab2"
 )
 
 const (
@@ -29,7 +32,7 @@ const (
 
 // Results is the JSON output of an MLLP scan.
 type Results struct {
-	Detected             bool   `json:"detected"` // a valid MLLP-framed HL7 response came back
+	Detected             bool   `json:"detected"`                        // a valid MLLP-framed HL7 response came back
 	AckCode              string `json:"ack_code,omitempty"`              // MSA-1: AA/AE/AR/CA/CE/CR
 	AckText              string `json:"ack_text,omitempty"`              // MSA-3
 	SendingApplication   string `json:"sending_application,omitempty"`   // response MSH-3
@@ -42,6 +45,8 @@ type Results struct {
 	ControlID            string `json:"control_id,omitempty"`            // response MSH-10
 	ErrText              string `json:"err_text,omitempty"`              // ERR-8 (or ERR-3) if present
 	Raw                  string `json:"raw,omitempty"`                   // de-framed HL7 banner
+
+	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"` // populated when --use-tls
 }
 
 // Probe sends a minimal HL7 message of the given type and parses the ACK.
@@ -58,7 +63,7 @@ func Probe(conn net.Conn, messageType string) (*Results, error) {
 	}
 	res.Raw = payload
 	if !parseHL7(payload, res) {
-		return res, fmt.Errorf("response is not HL7 (no MSH segment)")
+		return res, errors.New("response is not HL7 (no MSH segment)")
 	}
 	res.Detected = true
 	return res, nil

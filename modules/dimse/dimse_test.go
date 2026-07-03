@@ -17,6 +17,24 @@ func TestAssociateRQFraming(t *testing.T) {
 	}
 }
 
+func TestValidateAETitle(t *testing.T) {
+	good := []string{"ZGRAB2", "ANY-SCP", "A", "SIXTEEN_CHARS_16"}
+	for _, ae := range good {
+		if err := validateAETitle("x", ae); err != nil {
+			t.Errorf("validateAETitle(%q) = %v, want nil", ae, err)
+		}
+	}
+	bad := []string{"", "SEVENTEEN_CHARS17", "   ", "AE\\TITLE", "AE\x00X"}
+	for _, ae := range bad {
+		if err := validateAETitle("x", ae); err == nil {
+			t.Errorf("validateAETitle(%q) = nil, want error", ae)
+		}
+	}
+	if (Flags{CallingAE: "OK", CalledAE: "BAD\\ONE"}).Validate(nil) == nil {
+		t.Error("Flags.Validate should reject a bad called-ae")
+	}
+}
+
 // TestParseAssociateAC round-trips a synthetic AC through the acceptor parser,
 // mirroring the fields the DCMTK lab server returns.
 func TestParseAssociateAC(t *testing.T) {
