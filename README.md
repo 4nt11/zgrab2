@@ -11,10 +11,10 @@ ZGrab 2.0 contains a new, modular ZGrab framework, which fully supersedes https:
 ZGrab offers modules for a variety of protocols. Currently, we offer:
 
 <table>
-<tr><td>AMQP</td><td>BACnet</td><td>Banner</td><td>DNP3</td><td>Fox</td><td>FTP</td><td>HTTP</td><td>IMAP</td><td>IPP</td></tr>
-<tr><td>JARM</td><td>ManageSieve</td><td>Memcached</td><td>Modbus</td><td>MongoDB</td><td>MQTT</td><td>MSSQL</td><td>MySQL</td><td>NTP</td></tr>
-<tr><td>Oracle</td><td>POP3</td><td>PostgreSQL</td><td>PPTP</td><td>Redis</td><td>Siemens</td><td>SMB</td><td>SMTP</td><td>SOCKS5</td></tr>
-<tr><td>SSH</td><td>Telnet</td><td>TLS</td></tr>
+<tr><td>AMQP</td><td>BACnet</td><td>Banner</td><td>DIMSE</td><td>DNP3</td><td>Fox</td><td>FTP</td><td>HTTP</td><td>IMAP</td></tr>
+<tr><td>IPP</td><td>JARM</td><td>ManageSieve</td><td>Memcached</td><td>MLLP</td><td>Modbus</td><td>MongoDB</td><td>MQTT</td><td>MSSQL</td></tr>
+<tr><td>MySQL</td><td>NTP</td><td>Oracle</td><td>POP3</td><td>PostgreSQL</td><td>PPTP</td><td>Redis</td><td>Siemens</td><td>SMB</td></tr>
+<tr><td>SMTP</td><td>SOCKS5</td><td>SSH</td><td>Telnet</td><td>TLS</td></tr>
 </table>
 
 More details are available in the Modules [section](https://github.com/zmap/zgrab2/#single-module-usage) below.
