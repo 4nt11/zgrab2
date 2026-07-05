@@ -1,6 +1,43 @@
 package mllp
 
-import "testing"
+import (
+	"net"
+	"testing"
+)
+
+// TestTier2Framing: a peer that returns an empty MLLP frame (<SB><EB><CR>) — as a
+// misconfigured Mirth does — must be detected via framing, not dropped for lacking MSH.
+func TestTier2Framing(t *testing.T) {
+	client, server := net.Pipe()
+	go func() {
+		buf := make([]byte, 512)
+		_, _ = server.Read(buf)              // consume the probe
+		_, _ = server.Write([]byte{sb, eb, cr}) // reply: empty MLLP frame
+		_ = server.Close()
+	}()
+	res, err := Probe(client, "QBP^Q11")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !res.Detected || res.DetectionMethod != "mllp-frame" {
+		t.Fatalf("want detected via mllp-frame, got detected=%v method=%q", res.Detected, res.DetectionMethod)
+	}
+}
+
+// TestTier3NonMLLP: a peer that sends non-framed garbage must NOT be detected.
+func TestTier3NonMLLP(t *testing.T) {
+	client, server := net.Pipe()
+	go func() {
+		buf := make([]byte, 512)
+		_, _ = server.Read(buf)
+		_, _ = server.Write([]byte("HTTP/1.1 400 Bad Request\r\n"))
+		_ = server.Close()
+	}()
+	res, err := Probe(client, "QBP^Q11")
+	if err == nil && res.Detected {
+		t.Fatalf("non-MLLP peer should not be detected, got %+v", res)
+	}
+}
 
 // TestFrame checks the MLLP <SB>payload<EB><CR> envelope.
 func TestFrame(t *testing.T) {

@@ -32,7 +32,9 @@ const (
 
 // Results is the JSON output of an MLLP scan.
 type Results struct {
-	Detected             bool   `json:"detected"`                        // a valid MLLP-framed HL7 response came back
+	Detected             bool   `json:"detected"`                        // MLLP listener confirmed (HL7 ACK or MLLP framing)
+	DetectionMethod      string `json:"detection_method,omitempty"`      // "hl7-ack" (tier 1) or "mllp-frame" (tier 2)
+	ProbeType            string `json:"probe_type,omitempty"`            // MSH-9 of the probe message that got the detection
 	AckCode              string `json:"ack_code,omitempty"`              // MSA-1: AA/AE/AR/CA/CE/CR
 	AckText              string `json:"ack_text,omitempty"`              // MSA-3
 	SendingApplication   string `json:"sending_application,omitempty"`   // response MSH-3
@@ -57,16 +59,28 @@ func Probe(conn net.Conn, messageType string) (*Results, error) {
 	if _, err := conn.Write(frame(buildProbe(messageType))); err != nil {
 		return res, fmt.Errorf("writing MLLP probe: %w", err)
 	}
-	payload, err := readFrame(conn)
+	payload, framed, err := readFrame(conn)
 	if err != nil {
 		return res, fmt.Errorf("reading MLLP response: %w", err)
 	}
 	res.Raw = payload
-	if !parseHL7(payload, res) {
-		return res, errors.New("response is not HL7 (no MSH segment)")
+	// Tier 1: a parseable HL7 ACK (MSH present) — the strongest signal.
+	if parseHL7(payload, res) {
+		res.Detected = true
+		res.DetectionMethod = "hl7-ack"
+		return res, nil
 	}
-	res.Detected = true
-	return res, nil
+	// Tier 2: the response arrived wrapped in MLLP framing (<SB>...) but wasn't a
+	// parseable HL7 ACK — e.g. a misconfigured engine returning an empty frame, or
+	// a non-standard NAK. Only an MLLP speaker opens a response with <SB>, so this
+	// is still a positive identification. Cuts false negatives on real-world hosts
+	// that don't return a clean ACK.
+	if framed {
+		res.Detected = true
+		res.DetectionMethod = "mllp-frame"
+		return res, nil
+	}
+	return res, errors.New("response is neither HL7 nor MLLP-framed")
 }
 
 // buildProbe constructs a minimal but well-formed HL7 v2 MSH message.
@@ -90,27 +104,32 @@ func frame(payload string) []byte {
 }
 
 // readFrame reads until the <EB><CR> trailer and returns the de-framed payload.
-// A leading <SB> is stripped; trailing framing bytes are removed.
-func readFrame(conn net.Conn) (string, error) {
+// A leading <SB> is stripped; trailing framing bytes are removed. framed reports
+// whether the response opened with <SB> — the MLLP signature — which lets the
+// caller detect a listener even when no parseable HL7 ACK comes back.
+func readFrame(conn net.Conn) (payload string, framed bool, err error) {
 	var buf bytes.Buffer
 	tmp := make([]byte, 512)
 	for {
-		n, err := conn.Read(tmp)
+		n, rerr := conn.Read(tmp)
 		if n > 0 {
 			buf.Write(tmp[:n])
+			// Only an MLLP speaker opens its response with <SB>; that byte alone
+			// is the protocol signature even if a parseable HL7 ACK never arrives.
+			framed = buf.Bytes()[0] == sb
 			if i := bytes.IndexByte(buf.Bytes(), eb); i >= 0 {
-				return string(stripFraming(buf.Bytes()[:i])), nil
+				return string(stripFraming(buf.Bytes()[:i])), framed, nil
 			}
 			if buf.Len() > maxResponse {
-				return "", fmt.Errorf("response exceeded %d bytes without EB", maxResponse)
+				return "", framed, fmt.Errorf("response exceeded %d bytes without EB", maxResponse)
 			}
 		}
-		if err != nil {
-			if err == io.EOF && buf.Len() > 0 {
+		if rerr != nil {
+			if rerr == io.EOF && buf.Len() > 0 {
 				// Peer closed without a proper trailer; return what we framed.
-				return string(stripFraming(buf.Bytes())), nil
+				return string(stripFraming(buf.Bytes())), framed, nil
 			}
-			return "", err
+			return "", framed, rerr
 		}
 	}
 }
